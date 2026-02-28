@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Molecule Builder — Mr. Larson's Science</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --bg: #0d1b2a;
+  --surface: #1a2f45;
+  --surface2: #1f3a54;
+  --border: #2a4f72;
+  --accent: #4ecdc4;
+  --accent2: #ff6b6b;
+  --accent3: #ffd166;
+  --text: #e8f4f8;
+  --text-muted: #7aa8c4;
+  --correct: #06d6a0;
+  --wrong: #ef476f;
+  --btn-h: 42px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+/* ── LAYOUT ───────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Header */
+#header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 6px;
+  background: linear-gradient(180deg, #0a1520 0%, transparent 100%);
+  z-index: 10;
+}
+#header h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent3));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
+}
+#score-display {
+  display: flex;
+  gap: 10px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+}
+.score-pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+.score-pill.good { background: rgba(6,214,160,0.2); color: var(--correct); border: 1px solid rgba(6,214,160,0.4); }
+.score-pill.bad { background: rgba(239,71,111,0.2); color: var(--wrong); border: 1px solid rgba(239,71,111,0.4); }
+
+/* 3D Viewer */
+#viewer-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+#three-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  touch-action: none;
+}
+#molecule-name-tag {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(13,27,42,0.88);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 6px 14px 7px;
+  pointer-events: none;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  text-align: center;
+  line-height: 1.3;
+  display: none;
+  align-items: center;
+  gap: 12px;
+}
+#molecule-name-tag .tag-left { text-align: center; }
+#molecule-name-tag .tag-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: block;
+}
+#molecule-name-tag .tag-formula {
+  font-size: 1.05rem;
+  font-family: 'Fredoka One', cursive;
+  color: var(--accent3);
+  display: block;
+  letter-spacing: 0.5px;
+}
+#molecule-name-tag .tag-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+#molecule-name-tag .tag-right { text-align: center; }
+#molecule-name-tag .tag-atom-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+#molecule-name-tag .tag-atom-count {
+  font-size: 1.05rem;
+  font-family: 'Fredoka One', cursive;
+  color: var(--accent);
+  display: block;
+}
+#rotate-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#empty-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.6;
+  pointer-events: none;
+}
+#empty-hint .big { font-size: 2.5rem; display: block; margin-bottom: 6px; }
+
+/* ── BOTTOM PANEL ─────────────────────────────────────── */
+#bottom-panel {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-top: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 38vh;
+}
+
+/* Tabs */
+#tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  position: relative;
+}
+.tab-btn.active {
+  color: var(--accent);
+  background: rgba(78,205,196,0.07);
+}
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 10%; right: 10%;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Tab content */
+.tab-content { display: none; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px; }
+.tab-content.active { display: block; }
+
+#atoms-tab { padding: 7px 10px 8px; }
+.atom-section-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+#atom-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  margin-bottom: 7px;
+}
+.atom-btn {
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 0.72rem;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  transition: transform 0.12s, box-shadow 0.12s;
+  min-height: 0;
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.atom-btn:active { transform: scale(0.88); }
+.atom-btn .el-sub { display: none; }
+.atom-btn .el-num { display: none; }
+.atom-count-badge {
+  position: absolute;
+  top: -5px; right: -5px;
+  background: var(--accent3);
+  color: #0d1b2a;
+  font-size: 0.55rem;
+  font-weight: 900;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Current molecule atoms display */
+#current-atoms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface2);
+  border-radius: 10px;
+  min-height: 36px;
+  align-items: center;
+}
+.current-atom-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px 3px 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.current-atom-chip .dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.chip-remove {
+  background: rgba(239,71,111,0.25);
+  border: none;
+  color: var(--wrong);
+  border-radius: 50%;
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem;
+  cursor: pointer;
+  margin-left: 2px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+/* Action buttons */
+#action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.action-btn {
+  height: var(--btn-h);
+  border: none;
+  border-radius: 12px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.action-btn:active { transform: scale(0.96); }
+.action-btn.primary { background: var(--accent); color: #0d1b2a; }
+.action-btn.danger { background: rgba(239,71,111,0.2); color: var(--wrong); border: 1.5px solid rgba(239,71,111,0.4); }
+
+/* ── EXAMPLES TAB ─────────────────────────────────────── */
+#examples-tab { }
+.example-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+  margin-bottom: 6px;
+}
+.example-row:active { background: rgba(78,205,196,0.1); border-color: var(--accent); }
+.example-formula {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.2rem;
+  color: var(--accent3);
+  min-width: 70px;
+}
+.example-info { flex: 1; }
+.example-name { font-weight: 800; font-size: 0.9rem; }
+.example-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+.example-arrow { color: var(--text-muted); font-size: 1rem; }
+
+/* ── QUIZ PANEL (slides up) ───────────────────────────── */
+#quiz-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  backdrop-filter: blur(4px);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+#quiz-overlay.show {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+#quiz-sheet {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 24px 24px 0 0;
+  border-top: 2px solid var(--border);
+  padding: 20px 20px 36px;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.175,0.885,0.32,1.1);
+}
+#quiz-overlay.show #quiz-sheet {
+  transform: translateY(0);
+}
+#quiz-sheet h2 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.3rem;
+  color: var(--accent3);
+  margin-bottom: 4px;
+}
+#quiz-molecule-visual {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+#quiz-molecule-visual sub { font-size: 0.7em; }
+#quiz-desc { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
+.quiz-hint-box {
+  background: rgba(78,205,196,0.1);
+  border: 1px solid rgba(78,205,196,0.25);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.quiz-hint-box strong { color: var(--accent); }
+#formula-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#formula-input {
+  flex: 1;
+  height: 52px;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 0 16px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text);
+  outline: none;
+  -webkit-appearance: none;
+  caret-color: var(--accent);
+}
+#formula-input:focus { border-color: var(--accent); }
+#formula-input.correct { border-color: var(--correct); background: rgba(6,214,160,0.1); }
+#formula-input.wrong { border-color: var(--wrong); background: rgba(239,71,111,0.1); animation: shake 0.4s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+#check-btn {
+  height: 52px;
+  padding: 0 20px;
+  background: var(--accent);
+  color: #0d1b2a;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 1rem;
+  cursor: pointer;
+}
+#check-btn:active { opacity: 0.8; }
+#feedback {
+  font-size: 0.9rem;
+  font-weight: 700;
+  min-height: 22px;
+  margin-bottom: 10px;
+}
+#feedback.correct { color: var(--correct); }
+#feedback.wrong { color: var(--wrong); }
+#feedback.hint { color: var(--accent3); }
+
+#quiz-buttons-row {
+  display: flex;
+  gap: 8px;
+}
+.quiz-small-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.quiz-small-btn:active { background: var(--surface2); }
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <h1>⚗️ Molecule Builder</h1>
+    <div id="score-display">
+      <div class="score-pill good">✓ <span id="sc-correct">0</span></div>
+      <div class="score-pill bad">✗ <span id="sc-tries">0</span></div>
+    </div>
+  </div>
+
+  <!-- 3D VIEWER -->
+  <div id="viewer-wrap">
+    <canvas id="three-canvas"></canvas>
+    <div id="molecule-name-tag" style="display:none"></div>
+    <div id="rotate-hint" style="display:none">👆 Drag to rotate · Pinch to zoom</div>
+    <div id="empty-hint">
+      <span class="big">🧪</span>
+      Tap an element below<br>to start building!
+    </div>
+  </div>
+
+  <!-- BOTTOM PANEL -->
+  <div id="bottom-panel">
+    <div id="tabs">
+      <button class="tab-btn active" onclick="switchTab('atoms')">🔬 Build Your Own</button>
+      <button class="tab-btn" onclick="switchTab('examples')">⭐ Common Molecules</button>
+    </div>
+
+    <!-- BUILD TAB -->
+    <div id="atoms-tab" class="tab-content active">
+      <div class="atom-section-label">Tap to add atoms</div>
+      <div id="atom-grid"></div>
+      <div class="atom-section-label" style="margin-top:8px">Your molecule</div>
+      <div id="current-atoms"><span style="color:var(--text-muted);font-size:0.8rem">No atoms yet</span></div>
+      <div id="action-row">
+        <button class="action-btn primary" onclick="openQuiz()">✏️ Write Formula</button>
+        <button class="action-btn danger" onclick="clearAll()">🗑️ Clear</button>
+      </div>
+    </div>
+
+    <!-- EXAMPLES TAB -->
+    <div id="examples-tab" class="tab-content">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- QUIZ OVERLAY -->
+<div id="quiz-overlay" onclick="handleOverlayClick(event)">
+  <div id="quiz-sheet">
+    <h2>📝 Write the Formula!</h2>
+    <div id="quiz-molecule-visual"></div>
+    <div id="quiz-desc"></div>
+    <div class="quiz-hint-box">
+      💡 <strong>Remember:</strong> First letter is UPPERCASE, second letter is lowercase.<br>
+      No number means 1 atom. Type just the number after each symbol (e.g. <strong>H2O</strong>).
+    </div>
+    <div id="formula-row">
+      <input type="text" id="formula-input" placeholder="e.g. H2O"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        inputmode="text" />
+      <button id="check-btn" onclick="checkFormula()">Check ✓</button>
+    </div>
+    <div id="feedback"></div>
+    <div id="quiz-buttons-row">
+      <button class="quiz-small-btn" onclick="showHint()">💡 Hint</button>
+      <button class="quiz-small-btn" onclick="closeQuiz()">✖ Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  ELEMENT DATA
+// ═══════════════════════════════════════════════════════════
+const ELEMENTS = [
+  { symbol:'H',  name:'Hydrogen',   num:1,  color:0xffffff, radius:0.31 },
+  { symbol:'C',  name:'Carbon',     num:6,  color:0x333344, radius:0.77 },
+  { symbol:'O',  name:'Oxygen',     num:8,  color:0xdd2211, radius:0.66 },
+  { symbol:'N',  name:'Nitrogen',   num:7,  color:0x2255cc, radius:0.71 },
+  { symbol:'Na', name:'Sodium',     num:11, color:0x9944ee, radius:1.02 },
+  { symbol:'Cl', name:'Chlorine',   num:17, color:0x22aa33, radius:1.00 },
+  { symbol:'S',  name:'Sulfur',     num:16, color:0xddaa00, radius:1.05 },
+  { symbol:'P',  name:'Phosphorus', num:15, color:0xee6600, radius:1.07 },
+  { symbol:'Ca', name:'Calcium',    num:20, color:0x888899, radius:1.00 },
+  { symbol:'Mg', name:'Magnesium',  num:12, color:0x00b4b4, radius:0.72 },
+  { symbol:'F',  name:'Fluorine',   num:9,  color:0x66ccff, radius:0.64 },
+  { symbol:'K',  name:'Potassium',  num:19, color:0xff6eb4, radius:1.38 },
+];
+
+// CSS hex versions for UI
+const ELCOLOR = {
+  H:'#9ab8cc', C:'#555566', O:'#dd3322', N:'#3366dd', Na:'#9944ee',
+  Cl:'#22aa33', S:'#ddaa00', P:'#ee6600', Ca:'#889', Mg:'#00b4b4',
+  F:'#66ccff', K:'#ff6eb4'
+};
+
+// ═══════════════════════════════════════════════════════════
+//  MOLECULAR GEOMETRY DATA (real 3D coordinates, Angstroms)
+//  Bond length scale: ~1 unit = 1Å, scaled for display
+// ═══════════════════════════════════════════════════════════
+const MOLECULE_PRESETS = [
+  {
+    label:'Water', formula:'H2O', atoms:{H:2,O:1},
+    desc:'Water — H₂O — the molecule of life!',
+    // O at center, bent 104.5°
+    geo: [
+      {el:'O', pos:[0,0,0]},
+      {el:'H', pos:[0.96, 0, 0]},
+      {el:'H', pos:[-0.24, 0.93, 0]},
+    ],
+    bonds:[[0,1],[0,2]]
+  },
+  {
+    label:'Carbon Dioxide', formula:'CO2', atoms:{C:1,O:2},
+    desc:'CO₂ — what we breathe out. Perfectly straight (linear)!',
+    geo:[
+      {el:'C', pos:[0,0,0]},
+      {el:'O', pos:[1.16,0,0]},
+      {el:'O', pos:[-1.16,0,0]},
+    ],
+    bonds:[[0,1],[0,2]]
+  },
+  {
+    label:'Oxygen Gas', formula:'O2', atoms:{O:2},
+    desc:'O₂ — the oxygen we breathe in. Two atoms bonded together.',
+    geo:[
+      {el:'O', pos:[-0.6,0,0]},
+      {el:'O', pos:[0.6,0,0]},
+    ],
+    bonds:[[0,1]]
+  },
+  {
+    label:'Table Salt', formula:'NaCl', atoms:{Na:1,Cl:1},
+    desc:'NaCl — sodium chloride. The salt you put on food!',
+    geo:[
+      {el:'Na', pos:[-1.0,0,0]},
+      {el:'Cl', pos:[1.0,0,0]},
+    ],
+    bonds:[[0,1]]
+  },
+  {
+    label:'Ammonia', formula:'NH3', atoms:{N:1,H:3},
+    desc:'NH₃ — ammonia. Trigonal pyramidal shape!',
+    // N at top of pyramid, H atoms at base
+    geo:[
+      {el:'N', pos:[0, 0.3, 0]},
+      {el:'H', pos:[1.0, -0.4, 0]},
+      {el:'H', pos:[-0.5, -0.4, 0.87]},
+      {el:'H', pos:[-0.5, -0.4, -0.87]},
+    ],
+    bonds:[[0,1],[0,2],[0,3]]
+  },
+  {
+    label:'Methane', formula:'CH4', atoms:{C:1,H:4},
+    desc:'CH₄ — methane (natural gas). Perfect tetrahedral shape!',
+    geo:[
+      {el:'C', pos:[0,0,0]},
+      {el:'H', pos:[1.0, 1.0, 1.0]},
+      {el:'H', pos:[-1.0,-1.0, 1.0]},
+      {el:'H', pos:[-1.0, 1.0,-1.0]},
+      {el:'H', pos:[1.0,-1.0,-1.0]},
+    ],
+    bonds:[[0,1],[0,2],[0,3],[0,4]]
+  },
+  {
+    label:'Nitrogen Gas', formula:'N2', atoms:{N:2},
+    desc:'N₂ — nitrogen gas. Makes up 78% of our air!',
+    geo:[
+      {el:'N', pos:[-0.55,0,0]},
+      {el:'N', pos:[0.55,0,0]},
+    ],
+    bonds:[[0,1]]
+  },
+  {
+    label:'Hydrogen Peroxide', formula:'H2O2', atoms:{H:2,O:2},
+    desc:'H₂O₂ — hydrogen peroxide. Like water but with an extra oxygen!',
+    geo:[
+      {el:'O', pos:[0, 0, 0]},
+      {el:'O', pos:[1.45, 0, 0]},
+      {el:'H', pos:[-0.5, 0.8, 0.5]},
+      {el:'H', pos:[1.95, 0.8, -0.5]},
+    ],
+    bonds:[[0,1],[0,2],[1,3]]
+  },
+];
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let currentAtoms = {};  // {symbol: count}
+let scoreCorrect = 0;
+let scoreTries = 0;
+let activePreset = null; // if loaded from example
+
+// ═══════════════════════════════════════════════════════════
+//  THREE.JS SCENE
+// ═══════════════════════════════════════════════════════════
+let scene, camera, renderer, moleculeGroup;
+let isDragging = false;
+let prevTouch = null;
+
+function initThree() {
+  const canvas = document.getElementById('three-canvas');
+  const wrap = document.getElementById('viewer-wrap');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = true;
+
+  scene = new THREE.Scene();
+
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  camera = new THREE.PerspectiveCamera(40, w/h, 0.1, 100);
+  camera.position.set(0, 0, 10);
+  renderer.setSize(w, h);
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+  scene.add(ambient);
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(5, 8, 10);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x8899ff, 0.3);
+  fill.position.set(-5, -3, -5);
+  scene.add(fill);
+  const rimLight = new THREE.DirectionalLight(0x4ecdc4, 0.4);
+  rimLight.position.set(0, 5, -10);
+  scene.add(rimLight);
+
+  moleculeGroup = new THREE.Group();
+  scene.add(moleculeGroup);
+
+  setupTouchControls(canvas);
+  setupMouseControls(canvas);
+
+  animate();
+  window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+  const wrap = document.getElementById('viewer-wrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!isDragging) {
+    moleculeGroup.rotation.y += 0.004;
+  }
+  renderer.render(scene, camera);
+}
+
+// ── TOUCH CONTROLS ──────────────────────────────────────
+function setupTouchControls(canvas) {
+  let lastTouches = null;
+  let lastPinchDist = null;
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    isDragging = true;
+    lastTouches = e.touches;
+    if (e.touches.length === 2) {
+      lastPinchDist = getPinchDist(e.touches);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!isDragging || !lastTouches) return;
+
+    if (e.touches.length === 1 && lastTouches.length === 1) {
+      // Single finger — rotate
+      const dx = e.touches[0].clientX - lastTouches[0].clientX;
+      const dy = e.touches[0].clientY - lastTouches[0].clientY;
+      moleculeGroup.rotation.y += dx * 0.012;
+      moleculeGroup.rotation.x += dy * 0.012;
+    } else if (e.touches.length === 2) {
+      // Two fingers — pinch to zoom
+      const dist = getPinchDist(e.touches);
+      if (lastPinchDist !== null) {
+        const delta = lastPinchDist - dist;
+        camera.position.z = Math.max(2, Math.min(30, camera.position.z + delta * 0.04));
+      }
+      lastPinchDist = dist;
+    }
+    lastTouches = e.touches;
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    isDragging = e.touches.length > 0;
+    lastTouches = e.touches.length > 0 ? e.touches : null;
+    if (e.touches.length < 2) lastPinchDist = null;
+  });
+}
+
+function getPinchDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+function setupMouseControls(canvas) {
+  let mx, my;
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true; mx = e.clientX; my = e.clientY;
+  });
+  canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    moleculeGroup.rotation.y += (e.clientX - mx) * 0.01;
+    moleculeGroup.rotation.x += (e.clientY - my) * 0.01;
+    mx = e.clientX; my = e.clientY;
+  });
+  canvas.addEventListener('mouseup', () => { isDragging = false; });
+  canvas.addEventListener('mouseleave', () => { isDragging = false; });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camera.position.z = Math.max(2, Math.min(30, camera.position.z + e.deltaY * 0.02));
+  }, { passive: false });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MOLECULE BUILDING
+// ═══════════════════════════════════════════════════════════
+function buildMolecule3D(geo, bonds) {
+  // Clear previous
+  while (moleculeGroup.children.length) moleculeGroup.remove(moleculeGroup.children[0]);
+  moleculeGroup.rotation.set(0.3, 0.3, 0);
+  isDragging = false;
+
+  if (!geo || geo.length === 0) {
+    document.getElementById('empty-hint').style.display = '';
+    document.getElementById('molecule-name-tag').style.display = 'none';
+    document.getElementById('rotate-hint').style.display = 'none';
+    // Auto-fit camera
+    camera.position.set(0,0,10);
+    return;
+  }
+
+  document.getElementById('empty-hint').style.display = 'none';
+  document.getElementById('rotate-hint').style.display = '';
+
+  // Scale factor for display
+  const SCALE = 1.35;
+
+  // Center the molecule
+  let cx=0,cy=0,cz=0;
+  geo.forEach(a => { cx+=a.pos[0]; cy+=a.pos[1]; cz+=a.pos[2]; });
+  cx/=geo.length; cy/=geo.length; cz/=geo.length;
+
+  // Atom spheres
+  const atomMeshes = [];
+  geo.forEach(atomData => {
+    const elInfo = ELEMENTS.find(e=>e.symbol===atomData.el);
+    const r = (elInfo ? elInfo.radius : 0.7) * SCALE * 0.85;
+    const geo3 = new THREE.SphereGeometry(r, 32, 24);
+    const c = elInfo ? elInfo.color : 0xaaaaaa;
+    const mat = new THREE.MeshPhongMaterial({
+      color: c,
+      specular: 0xffffff,
+      shininess: 80,
+      emissive: new THREE.Color(c).multiplyScalar(0.12),
+    });
+    const mesh = new THREE.Mesh(geo3, mat);
+    const px = (atomData.pos[0]-cx)*SCALE;
+    const py = (atomData.pos[1]-cy)*SCALE;
+    const pz = (atomData.pos[2]-cz)*SCALE;
+    mesh.position.set(px, py, pz);
+    mesh.castShadow = true;
+    moleculeGroup.add(mesh);
+    atomMeshes.push(mesh);
+  });
+
+  // Bonds (cylinders between atoms)
+  bonds.forEach(([i,j]) => {
+    const a = atomMeshes[i].position;
+    const b = atomMeshes[j].position;
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+
+    const bondGeo = new THREE.CylinderGeometry(0.12, 0.12, len, 12);
+    const bondMat = new THREE.MeshPhongMaterial({ color: 0xaabccc, shininess: 40 });
+    const bond = new THREE.Mesh(bondGeo, bondMat);
+    bond.position.copy(mid);
+    bond.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0,1,0),
+      dir.clone().normalize()
+    );
+    moleculeGroup.add(bond);
+  });
+
+  // Fit camera to molecule size
+  const box = new THREE.Box3().setFromObject(moleculeGroup);
+  const size = box.getSize(new THREE.Vector3()).length();
+  camera.position.z = Math.max(size * 1.8, 5);
+}
+
+// Generate a generic 3D layout: first few atoms form a compact branching core,
+// then larger molecules use weighted-random parent selection so new atoms
+// attach anywhere with open slots — creating organic 3D branching, not chains.
+function buildGenericGeo(atomsObj) {
+  const geo   = [];
+  const bonds = [];
+
+  const atomList = [];
+  Object.keys(atomsObj).forEach(sym => {
+    for (let i = 0; i < atomsObj[sym]; i++) atomList.push(sym);
+  });
+
+  const n = atomList.length;
+  if (n === 0) return { geo: [], bonds: [] };
+
+  const SCALE = 1.35;
+  function getRadius(sym) {
+    const el = ELEMENTS.find(e => e.symbol === sym);
+    return (el ? el.radius : 0.7) * SCALE * 0.85;
+  }
+  const GAP = 0.6;
+  function bondLen(symA, symB) { return getRadius(symA) + getRadius(symB) + GAP; }
+
+  const MAX_BONDS = 4;
+  const neighborCount = new Array(n).fill(0);
+
+  function normalize(v) {
+    const len = Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) || 1;
+    return [v[0]/len, v[1]/len, v[2]/len];
+  }
+  function dot(a,b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+  function addV(a,b) { return [a[0]+b[0],a[1]+b[1],a[2]+b[2]]; }
+  function scaleV(v,s) { return [v[0]*s,v[1]*s,v[2]*s]; }
+  function distSq(a,b) { return (a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2; }
+
+  // Generate a uniform sphere of 64 directions with NO upward bias.
+  // Uses interleaved angles across all 3 axes so all directions are equally represented.
+  // seed shifts the rotation so each atom gets a different spread.
+  function getCandidates(seed) {
+    const dirs = [];
+    // Use 3 interleaved rings at different elevations + poles + diagonals
+    // to guarantee good coverage of all 6 directions (±x, ±y, ±z)
+    const offsets = [0, Math.PI/4, Math.PI/2, 3*Math.PI/4,
+                     Math.PI, 5*Math.PI/4, 3*Math.PI/2, 7*Math.PI/4];
+    const elevations = [-1.2, -0.7, -0.3, 0, 0.3, 0.7, 1.2]; // tan of elevation
+    for (const elev of elevations) {
+      const cosE = 1/Math.sqrt(1+elev*elev), sinE = elev*cosE;
+      for (const az of offsets) {
+        const a = az + seed * 0.39269908; // 22.5° per seed step — no bias
+        dirs.push(normalize([cosE*Math.cos(a), sinE, cosE*Math.sin(a)]));
+      }
+    }
+    // Add pure poles
+    dirs.push([0,1,0]); dirs.push([0,-1,0]);
+    return dirs;
+  }
+
+  // Pick the direction from parentIdx that points most INTO EMPTY SPACE.
+  // We score candidates against:
+  //   1. The directions of this atom's existing bonds (avoid going back)
+  //   2. The vector toward the overall center of mass of placed atoms
+  //      (so new atoms grow away from the existing cluster)
+  function getBestDir(parentIdx, seed) {
+    // Existing bond directions from this parent
+    const bondDirs = [];
+    bonds.forEach(([a,b]) => {
+      const from = a===parentIdx ? a : b===parentIdx ? b : -1;
+      const to   = a===parentIdx ? b : b===parentIdx ? a : -1;
+      if (from >= 0) {
+        bondDirs.push(normalize([
+          geo[to].pos[0]-geo[from].pos[0],
+          geo[to].pos[1]-geo[from].pos[1],
+          geo[to].pos[2]-geo[from].pos[2]
+        ]));
+      }
+    });
+
+    // Vector from parent toward center-of-mass of all placed atoms
+    // New atom should grow AWAY from this (negative score for going toward COM)
+    let cx=0, cy=0, cz=0;
+    geo.forEach(a => { cx+=a.pos[0]; cy+=a.pos[1]; cz+=a.pos[2]; });
+    cx/=geo.length; cy/=geo.length; cz/=geo.length;
+    const pp = geo[parentIdx].pos;
+    const toCOM = normalize([cx-pp[0], cy-pp[1], cz-pp[2]]);
+    const comWeight = geo.length > 2 ? 1.2 : 0; // only matters once structure exists
+
+    const cands = getCandidates(seed);
+    if (bondDirs.length === 0 && comWeight === 0) return cands[seed % cands.length];
+
+    let best = cands[0], bestScore = -Infinity;
+    for (const c of cands) {
+      // Penalise directions that go back along existing bonds
+      const bondPenalty = bondDirs.length > 0
+        ? Math.min(...bondDirs.map(e => dot(c,e)))
+        : 0;
+      // Penalise directions toward center of mass (we want to grow outward)
+      const comPenalty = comWeight * dot(c, toCOM);
+      const score = -bondPenalty - comPenalty;
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    return best;
+  }
+
+  function hasCollision(pos, newSym, parentIdx) {
+    for (let k=0; k<geo.length; k++) {
+      if (k===parentIdx) continue;
+      const minD = getRadius(newSym)+getRadius(geo[k].el)+0.08;
+      if (distSq(pos,geo[k].pos)<minD*minD) return true;
+    }
+    return false;
+  }
+
+  function placeAtom(i, parentIdx) {
+    const bl = bondLen(geo[parentIdx].el, atomList[i]);
+    const allDirs = [getBestDir(parentIdx,i), ...getCandidates(i+17), ...getCandidates(i+53)];
+    for (const dir of allDirs) {
+      const pos = addV(geo[parentIdx].pos, scaleV(dir, bl));
+      if (!hasCollision(pos, atomList[i], parentIdx)) {
+        geo.push({el:atomList[i], pos});
+        bonds.push([parentIdx, i]);
+        neighborCount[parentIdx]++; neighborCount[i]++;
+        return;
+      }
+    }
+    // last resort — best direction even if overlapping slightly
+    const pos = addV(geo[parentIdx].pos, scaleV(getBestDir(parentIdx,i), bl));
+    geo.push({el:atomList[i], pos});
+    bonds.push([parentIdx,i]);
+    neighborCount[parentIdx]++; neighborCount[i]++;
+  }
+
+  // ── PARENT SELECTION ──────────────────────────────────────
+  // Phase 1 (atoms 1–6): attach to atoms 0 or 1 only, cycling between them.
+  //   This builds a tight central cluster rather than a chain.
+  // Phase 2 (atoms 7+): weighted-random across ALL atoms with open slots.
+  //   Weight = (MAX_BONDS − currentBonds)², so open atoms win more often,
+  //   but any atom can be chosen — gives organic branching.
+  //   Uses a deterministic hash of i so layout is stable (no Math.random).
+  function pickParent(i) {
+    const CORE_ATOMS   = 2;   // how many atoms form the hub
+    const CORE_CUTOFF  = 6;   // attach to hub for first N atoms
+
+    if (i <= CORE_CUTOFF) {
+      // Round-robin across the first CORE_ATOMS atoms that have room
+      for (let attempt=0; attempt<CORE_ATOMS; attempt++) {
+        const j = attempt % Math.min(CORE_ATOMS, i);
+        if (neighborCount[j] < MAX_BONDS) return j;
+      }
+      // Hub is full — fall through to weighted random
+    }
+
+    // Build weighted pool from all placed atoms with capacity
+    const pool=[], weights=[];
+    for (let j=0; j<i; j++) {
+      const slots = MAX_BONDS - neighborCount[j];
+      if (slots > 0) { pool.push(j); weights.push(slots*slots); }
+    }
+    if (pool.length===0) return 0;
+    if (pool.length===1) return pool[0];
+
+    const total = weights.reduce((s,w)=>s+w, 0);
+    // Deterministic hash: Knuth multiplicative hash of i
+    const t = ((i*2654435761)>>>0) / 4294967296;
+    let cum=0;
+    for (let k=0; k<pool.length; k++) {
+      cum += weights[k]/total;
+      if (t < cum) return pool[k];
+    }
+    return pool[pool.length-1];
+  }
+
+  // ── BUILD ─────────────────────────────────────────────────
+  geo.push({el:atomList[0], pos:[0,0,0]});
+  if (n===1) return {geo,bonds};
+
+  for (let i=1; i<n; i++) placeAtom(i, pickParent(i));
+
+  return {geo,bonds};
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UI: ATOM BUTTONS
+// ═══════════════════════════════════════════════════════════
+function buildAtomGrid() {
+  const grid = document.getElementById('atom-grid');
+  ELEMENTS.forEach(el => {
+    const btn = document.createElement('button');
+    btn.className = 'atom-btn';
+    btn.id = 'atomBtn-'+el.symbol;
+    const bg = ELCOLOR[el.symbol] || '#555';
+    btn.style.background = `linear-gradient(145deg, ${bg}dd, ${bg}88)`;
+    btn.style.border = `2px solid ${bg}66`;
+    btn.innerHTML = `<span class="el-num">${el.num}</span>${el.symbol}<span class="el-sub">${el.name}</span>`;
+    btn.addEventListener('click', () => addAtom(el.symbol));
+    grid.appendChild(btn);
+  });
+}
+
+function buildExamplesList() {
+  const tab = document.getElementById('examples-tab');
+  tab.innerHTML = '';
+  MOLECULE_PRESETS.forEach(preset => {
+    const row = document.createElement('div');
+    row.className = 'example-row';
+    row.innerHTML = `
+      <div class="example-formula">${preset.formula}</div>
+      <div class="example-info">
+        <div class="example-name">${preset.label}</div>
+        <div class="example-desc">${preset.desc.replace(/[₀-₉]/g,'').replace(/[⁰-⁹]/g,'')}</div>
+      </div>
+      <div class="example-arrow">→</div>
+    `;
+    row.addEventListener('click', () => loadPreset(preset));
+    tab.appendChild(row);
+  });
+}
+
+// ── ATOM MANAGEMENT ─────────────────────────────────────
+function addAtom(symbol) {
+  currentAtoms[symbol] = (currentAtoms[symbol] || 0) + 1;
+  activePreset = null;
+  updateAll();
+}
+
+function removeOneAtom(symbol) {
+  if (!currentAtoms[symbol]) return;
+  currentAtoms[symbol]--;
+  if (currentAtoms[symbol] === 0) delete currentAtoms[symbol];
+  activePreset = null;
+  updateAll();
+}
+
+function clearAll() {
+  currentAtoms = {};
+  activePreset = null;
+  updateAll();
+  closeQuiz();
+}
+
+function loadPreset(preset) {
+  currentAtoms = {...preset.atoms};
+  activePreset = preset;
+  updateAll();
+  switchTab('atoms');
+  // tag is now set inside updateMolecule3D via updateAll()
+}
+
+function updateAll() {
+  updateChips();
+  updateBadges();
+  updateMolecule3D();
+}
+
+function updateChips() {
+  const wrap = document.getElementById('current-atoms');
+  const symbols = Object.keys(currentAtoms);
+  if (symbols.length === 0) {
+    wrap.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem">No atoms yet</span>';
+    return;
+  }
+  wrap.innerHTML = '';
+  symbols.forEach(sym => {
+    const count = currentAtoms[sym];
+    const chip = document.createElement('div');
+    chip.className = 'current-atom-chip';
+    chip.innerHTML = `
+      <div class="dot" style="background:${ELCOLOR[sym]||'#aaa'}"></div>
+      <span>${count > 1 ? count+'×' : ''}${sym}</span>
+      <button class="chip-remove" onclick="removeOneAtom('${sym}')">−</button>
+    `;
+    wrap.appendChild(chip);
+  });
+}
+
+function updateBadges() {
+  ELEMENTS.forEach(el => {
+    const btn = document.getElementById('atomBtn-'+el.symbol);
+    if (!btn) return;
+    const existing = btn.querySelector('.atom-count-badge');
+    if (existing) existing.remove();
+    const count = currentAtoms[el.symbol];
+    if (count) {
+      const badge = document.createElement('div');
+      badge.className = 'atom-count-badge';
+      badge.textContent = count;
+      btn.appendChild(badge);
+    }
+  });
+}
+
+function updateMolecule3D() {
+  const symbols = Object.keys(currentAtoms);
+
+  if (symbols.length === 0) {
+    buildMolecule3D([], []);
+    document.getElementById('molecule-name-tag').style.display = 'none';
+    return;
+  }
+
+  let geo, bonds;
+
+  if (activePreset) {
+    geo = activePreset.geo;
+    bonds = activePreset.bonds;
+  } else {
+    const result = buildGenericGeo(currentAtoms);
+    geo = result.geo;
+    bonds = result.bonds;
+  }
+
+  buildMolecule3D(geo, bonds);
+
+  // Count total atoms
+  const totalAtoms = Object.values(currentAtoms).reduce((a,b)=>a+b, 0);
+  const tag = document.getElementById('molecule-name-tag');
+
+  if (activePreset) {
+    const subFormula = activePreset.formula.replace(/(\d+)/g, '<sub>$1</sub>');
+    tag.innerHTML = `
+      <div class="tag-left">
+        <span class="tag-name">${activePreset.label}</span>
+        <span class="tag-formula">${subFormula}</span>
+      </div>
+      <div class="tag-divider"></div>
+      <div class="tag-right">
+        <span class="tag-atom-label">Total Atoms</span>
+        <span class="tag-atom-count">${totalAtoms}</span>
+      </div>`;
+  } else {
+    const rawFormula = buildFormulaString(currentAtoms);
+    const subFormula = rawFormula.replace(/(\d+)/g, '<sub>$1</sub>');
+    tag.innerHTML = `
+      <div class="tag-left">
+        <span class="tag-formula">${subFormula}</span>
+      </div>
+      <div class="tag-divider"></div>
+      <div class="tag-right">
+        <span class="tag-atom-label">Total Atoms</span>
+        <span class="tag-atom-count">${totalAtoms}</span>
+      </div>`;
+  }
+  tag.style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FORMULA LOGIC
+// ═══════════════════════════════════════════════════════════
+function buildFormulaString(atomsObj) {
+  return Object.keys(atomsObj)
+    .map(s => s + (atomsObj[s]>1 ? atomsObj[s] : ''))
+    .join('');
+}
+
+// Parse a formula string into {symbol: count} — case aware
+function parseFormula(f) {
+  const result = {};
+  const regex = /([A-Z][a-z]?)(\d*)/g;
+  let m;
+  while ((m = regex.exec(f)) !== null) {
+    if (m[1]) {
+      result[m[1]] = (result[m[1]]||0) + (m[2] ? parseInt(m[2]) : 1);
+    }
+  }
+  return result;
+}
+
+// Compare two atom-count objects regardless of order
+function atomsMatch(a, b) {
+  const keysA = Object.keys(a), keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every(k => a[k] === b[k]);
+}
+
+// Check if user formula has same ELEMENTS (ignoring case issues) but wrong case
+function hasCaseIssues(userStr) {
+  // Find things that look like they should be element symbols
+  // Compare current atoms to what parsing gives
+  const correct = currentAtoms;
+  const userParsed = parseFormula(userStr);
+  // Normalize both to uppercase-keyed
+  const normCorrect = {}, normUser = {};
+  Object.keys(correct).forEach(k => { normCorrect[k.toUpperCase()] = correct[k]; });
+  Object.keys(userParsed).forEach(k => { normUser[k.toUpperCase()] = (normUser[k.toUpperCase()]||0) + userParsed[k]; });
+  return JSON.stringify(Object.keys(normCorrect).sort()) === JSON.stringify(Object.keys(normUser).sort())
+    && !atomsMatch(userParsed, correct);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  QUIZ
+// ═══════════════════════════════════════════════════════════
+function openQuiz() {
+  if (Object.keys(currentAtoms).length === 0) {
+    alert('Add some atoms first!');
+    return;
+  }
+
+  // Build visual formula with subscripts
+  let visual = '';
+  Object.keys(currentAtoms).forEach(sym => {
+    const count = currentAtoms[sym];
+    visual += sym + (count>1 ? `<sub>${count}</sub>` : '');
+  });
+
+  let desc = '';
+  if (activePreset) desc = activePreset.desc;
+  else {
+    const total = Object.values(currentAtoms).reduce((a,b)=>a+b,0);
+    desc = `Your molecule has ${total} atom${total>1?'s':''} in total.`;
+  }
+
+  document.getElementById('quiz-molecule-visual').innerHTML = visual;
+  document.getElementById('quiz-desc').textContent = desc;
+
+  const input = document.getElementById('formula-input');
+  input.value = '';
+  input.className = '';
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('feedback').className = '';
+
+  document.getElementById('quiz-overlay').classList.add('show');
+}
+
+function closeQuiz() {
+  document.getElementById('quiz-overlay').classList.remove('show');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('quiz-overlay')) closeQuiz();
+}
+
+function checkFormula() {
+  const input = document.getElementById('formula-input');
+  const feedback = document.getElementById('feedback');
+  const userStr = input.value.trim();
+
+  if (!userStr) {
+    feedback.textContent = 'Type something first!';
+    feedback.className = 'hint';
+    return;
+  }
+
+  scoreTries++;
+  document.getElementById('sc-tries').textContent = scoreTries;
+
+  const userParsed = parseFormula(userStr);
+  const correct = currentAtoms;
+
+  if (atomsMatch(userParsed, correct)) {
+    // ✅ Correct — regardless of order
+    scoreCorrect++;
+    document.getElementById('sc-correct').textContent = scoreCorrect;
+    input.className = 'correct';
+    feedback.className = 'correct';
+    const formulaStr = buildFormulaString(correct);
+    feedback.textContent = `🎉 Correct! Great job writing your formula!`;
+    return;
+  }
+
+  // ❌ Wrong — figure out WHY to give helpful feedback
+  input.className = 'wrong';
+  setTimeout(()=>{ if(input.className==='wrong') input.className=''; }, 600);
+
+  // Check for case issues specifically
+  if (hasCaseIssues(userStr)) {
+    feedback.className = 'wrong';
+    feedback.textContent = `❌ Almost! Check your uppercase and lowercase letters — that matters in chemistry!`;
+    return;
+  }
+
+  // Check if right elements wrong numbers
+  const userEls = Object.keys(userParsed).sort().join(',');
+  const correctEls = Object.keys(correct).sort().join(',');
+  if (userEls === correctEls) {
+    feedback.className = 'wrong';
+    feedback.textContent = `❌ You have the right elements! Double-check your numbers.`;
+    return;
+  }
+
+  feedback.className = 'wrong';
+  feedback.textContent = `❌ Not quite. Check which atoms are in your molecule and how many of each.`;
+}
+
+function showHint() {
+  const feedback = document.getElementById('feedback');
+  const parts = Object.keys(currentAtoms).map(sym => {
+    const count = currentAtoms[sym];
+    const el = ELEMENTS.find(e=>e.symbol===sym);
+    return `${count} ${el?el.name:sym} (${sym})`;
+  });
+  feedback.textContent = `💡 Your molecule has: ${parts.join(', ')}`;
+  feedback.className = 'hint';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const tabs = ['atoms','examples'];
+    b.classList.toggle('active', tabs[i]===name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(name+'-tab').classList.add('active');
+}
+
+// Enter key for quiz
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('quiz-overlay').classList.contains('show')) {
+    checkFormula();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initThree();
+  buildAtomGrid();
+  buildExamplesList();
+});
+</script>
+</body>
+</html>
